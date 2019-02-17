@@ -13,6 +13,19 @@
 
 service: lambda-architecture 
 
+plugins:
+  - serverless-offline
+  
+custom:
+  stage: ${opt:stage, self:provider.stage}
+  # Set our DynamoDB throughput for prod and all other non-prod stages.
+  tableThroughputs:
+    prod: 5
+    default: 1
+  tableThroughput: ${self:custom.tableThroughputs.${self:custom.stage}, self:custom.tableThroughputs.default}  
+
+  environment: ${self:custom.stage}
+
 # You can pin your service to only deploy with a specific Serverless version
 # Check out our docs for more details
 # frameworkVersion: "=X.X.X"
@@ -20,10 +33,68 @@ service: lambda-architecture
 provider:
   name: aws
   runtime: nodejs8.10
+  stage: dev
+  region: sa-east-1
 
+  environment:
+    tableName: Conteudo-Serverless
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:sa-east-1:*:*"  
+
+functions:
+
+  obter:
+    handler: handler.get
+    events:
+      - http:
+          path: /
+          method: get
+          cors: true
+  obterUm:
+    handler: handler.getOne
+    events:
+      - http:
+          path: /{uuid}
+          method: get
+          cors: true
+  create:
+    handler: handler.post
+    events:
+      - http:
+          path: /
+          method: post
+          cors: true
+
+# DynamoDB
+resources:
+  Resources:
+    ConteudoServerlessDynamoDbTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: uuid
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: uuid
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:provider.environment.tableName}          
 # you can overwrite defaults here
 #  stage: dev
-  region: sa-east-1
 
 # you can add statements to the Lambda function's IAM Role here
 #  iamRoleStatements:
@@ -54,14 +125,14 @@ provider:
 #    - exclude-me.js
 #    - exclude-me-dir/**
 
-functions:
-  hello:
-    handler: handler.lambda
-    events:
-      - http:
-          path: lambda
-          method: get
-          cors: true
+# functions:
+#   hello:
+#     handler: handler.lambda
+#     events:
+#       - http:
+#           path: lambda
+#           method: get
+#           cors: true
 
 #    The following are a few example events you can configure
 #    NOTE: Please make sure to change your handler code to work with those events
